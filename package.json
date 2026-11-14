@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd mumbai-smart-civic/frontend && npm install && npm run build"
+    "build": "npm --prefix mumbai-smart-civic/frontend install && npm --prefix mumbai-smart-civic/frontend run build && node -e \"const fs=require('fs'); fs.cpSync('mumbai-smart-civic/frontend/dist', './dist', {recursive: true});\""
   }
 }
-
