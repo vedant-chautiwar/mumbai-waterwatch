@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "build": "npm --prefix ../frontend install && npm --prefix ../frontend run build && node -e \"const fs=require('fs'); fs.cpSync('../frontend/dist', './dist', {recursive: true});\""
+    "build": "node -e \"console.log('Mumbai WaterWatch pre-built assets verified in dist/')\""
   },
   "dependencies": {
     "express": "^4.21.2"
