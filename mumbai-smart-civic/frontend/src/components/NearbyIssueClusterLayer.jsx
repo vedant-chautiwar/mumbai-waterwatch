@@ -1,9 +1,6 @@
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet.markercluster';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 
 function sanitizeIssues(issues) {
     if (!Array.isArray(issues)) return [];
@@ -22,22 +19,14 @@ function statusClass(issue) {
 }
 
 function markerIcon(issue) {
+    const s = statusClass(issue);
+    const color = s === 'resolved' ? '#10b981' : s === 'in-progress' ? '#f59e0b' : '#ef4444';
     return L.divIcon({
         className: 'nearby-issue-marker-wrapper',
-        html: `<span class="nearby-issue-marker nearby-issue-marker-${statusClass(issue)}"></span>`,
+        html: `<span style="display:inline-block;width:16px;height:16px;border-radius:50%;background-color:${color};border:2px solid #ffffff;box-shadow:0 0 6px rgba(0,0,0,0.4);"></span>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
         popupAnchor: [0, -12],
-    });
-}
-
-function clusterIcon(cluster) {
-    const count = cluster.getChildCount();
-    return L.divIcon({
-        className: 'nearby-cluster-wrapper',
-        html: `<div class="nearby-cluster-marker"><span>${count}</span></div>`,
-        iconSize: [42, 42],
-        iconAnchor: [21, 21],
     });
 }
 
@@ -46,49 +35,44 @@ export default function NearbyIssueClusterLayer({ issues, onViewDetails }) {
 
     useEffect(() => {
         const safeIssues = sanitizeIssues(issues);
-        const clusterGroup = L.markerClusterGroup({
-            showCoverageOnHover: false,
-            spiderfyOnMaxZoom: true,
-            disableClusteringAtZoom: 17,
-            maxClusterRadius: 52,
-            iconCreateFunction: clusterIcon,
-        });
+        const group = L.layerGroup();
 
         safeIssues.forEach((issue) => {
             const marker = L.marker(
                 [Number(issue.latitude), Number(issue.longitude)],
-                { icon: markerIcon(issue), title: issue.description || 'Nearby issue' },
+                { icon: markerIcon(issue), title: issue.title || issue.description || 'Water Leakage' }
             );
 
             const popupNode = document.createElement('div');
             popupNode.className = 'nearby-popup-card';
+            popupNode.style.padding = '8px';
+            popupNode.style.fontSize = '13px';
             popupNode.innerHTML = `
-                <div class="nearby-popup-title">${issue.description || 'Issue'}</div>
-                <div class="nearby-popup-meta">
-                    <span class="nearby-popup-badge nearby-popup-badge-${statusClass(issue)}">
-                        ${issue.display_status || issue.progress_status || issue.status || 'Pending'}
-                    </span>
-                    <span>${Math.round(Number(issue.distance_m || 0))}m away</span>
-                </div>
-                <div class="nearby-popup-ngo">
-                    NGO: ${issue.assigned_ngo_name || 'Not assigned'}
+                <div style="font-weight:700;margin-bottom:4px;color:#0f172a;">${issue.title || issue.description || 'Water Leakage'}</div>
+                <div style="margin-bottom:6px;font-size:12px;color:#475569;">
+                    <span>${issue.institution || issue.ward || 'Mumbai'}</span> • 
+                    <span style="font-weight:600;">${issue.status || 'Open'}</span>
                 </div>
             `;
 
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'btn btn-primary-filled nearby-popup-button';
-            button.textContent = 'View Details';
-            button.addEventListener('click', () => onViewDetails?.(issue));
-            popupNode.appendChild(button);
+            if (onViewDetails) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-primary-filled';
+                button.style.padding = '4px 10px';
+                button.style.fontSize = '12px';
+                button.textContent = 'View Details';
+                button.addEventListener('click', () => onViewDetails?.(issue));
+                popupNode.appendChild(button);
+            }
 
             marker.bindPopup(popupNode, { maxWidth: 280 });
-            clusterGroup.addLayer(marker);
+            group.addLayer(marker);
         });
 
-        map.addLayer(clusterGroup);
+        map.addLayer(group);
         return () => {
-            map.removeLayer(clusterGroup);
+            map.removeLayer(group);
         };
     }, [issues, map, onViewDetails]);
 

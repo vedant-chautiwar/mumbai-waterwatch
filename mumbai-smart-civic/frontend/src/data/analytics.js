@@ -1,0 +1,117 @@
+export const ANALYTICS_DATA = {
+    summary: {
+        totalReports: 18,
+        openReports: 6,
+        underReviewReports: 2,
+        inProgressReports: 5,
+        resolvedReports: 5,
+        resolutionRate: '61%',
+        estimatedWaterWastageLiters: 23820,
+        estimatedWaterSavedLiters: 15350,
+        tankerEquivalentSaved: 38, // 1 domestic water tanker is ~10,000L or 4,000L mini tanker
+        totalCollegesMonitored: 10,
+        totalSocietiesMonitored: 8,
+        activeHotspots: 4,
+    },
+
+    wardBreakdown: [
+        { ward: 'Ward F/N (Matunga/Wadala)', reports: 5, open: 2, resolved: 3, wastageKL: 6.2, savedKL: 4.5 },
+        { ward: 'Ward K/W (Andheri W/Vile Parle)', reports: 4, open: 1, resolved: 2, wastageKL: 5.4, savedKL: 4.1 },
+        { ward: 'Ward S (Powai/Bhandup)', reports: 3, open: 1, resolved: 0, wastageKL: 6.8, savedKL: 2.3 },
+        { ward: 'Ward T (Mulund/Thane-Nerul)', reports: 2, open: 1, resolved: 0, wastageKL: 5.8, savedKL: 0.5 },
+        { ward: 'Ward A (Colaba/Churchgate/Fort)', reports: 2, open: 1, resolved: 0, wastageKL: 1.6, savedKL: 0.6 },
+        { ward: 'Ward G/S (Lower Parel/Worli)', reports: 1, open: 0, resolved: 0, wastageKL: 1.3, savedKL: 1.1 },
+        { ward: 'Ward P/S (Goregaon East)', reports: 1, open: 1, resolved: 0, wastageKL: 3.2, savedKL: 0 },
+        { ward: 'Ward R/S (Kandivali East)', reports: 1, open: 0, resolved: 0, wastageKL: 0.8, savedKL: 0.6 },
+    ],
+
+    environmentComparison: {
+        colleges: {
+            total: 10,
+            open: 4,
+            inProgress: 2,
+            resolved: 4,
+            wastageLiters: 10130,
+            savedLiters: 8710,
+            topIssue: 'Washroom Taps & Lab Coolers',
+        },
+        residential: {
+            total: 8,
+            open: 2,
+            inProgress: 3,
+            resolved: 3,
+            wastageLiters: 13690,
+            savedLiters: 6640,
+            topIssue: 'Overhead Tanks & Underground Pumps',
+        },
+    },
+
+    categoryDistribution: [
+        { category: 'Overhead Tank Overflow', count: 4, percentage: 22, color: '#ef4444' },
+        { category: 'Washroom Tap Leakage', count: 4, percentage: 22, color: '#0ea5e9' },
+        { category: 'Water Pump / Motor Leakage', count: 2, percentage: 11, color: '#f59e0b' },
+        { category: 'Laboratory Water Wastage', count: 2, percentage: 11, color: '#8b5cf6' },
+        { category: 'Drinking Water Cooler Leakage', count: 1, percentage: 6, color: '#06b6d4' },
+        { category: 'Society Main Supply Pipeline', count: 2, percentage: 11, color: '#3b82f6' },
+        { category: 'Underground Pipeline Leakage', count: 2, percentage: 11, color: '#ec4899' },
+        { category: 'Campus Garden / Irrigation', count: 1, percentage: 6, color: '#10b981' },
+    ],
+
+    monthlyTrends: [
+        { month: 'Jun 2026', reported: 12, resolved: 9, wastageKL: 18.5, savedKL: 14.2 },
+        { month: 'Jul 2026', reported: 24, resolved: 19, wastageKL: 32.1, savedKL: 26.8 },
+        { month: 'Aug 2026', reported: 29, resolved: 23, wastageKL: 38.6, savedKL: 31.4 },
+        { month: 'Sep 2026', reported: 21, resolved: 18, wastageKL: 27.4, savedKL: 22.9 },
+        { month: 'Oct 2026', reported: 19, resolved: 16, wastageKL: 24.0, savedKL: 20.1 },
+        { month: 'Nov 2026', reported: 18, resolved: 11, wastageKL: 23.8, savedKL: 15.4 },
+    ],
+
+    hotspots: [
+        {
+            name: 'Veermata Jijabai Technological Institute (VJTI)',
+            ward: 'Ward F/N (Matunga)',
+            type: 'College',
+            activeLeaks: 2,
+            criticalCount: 1,
+            avgResolutionHours: 4.2,
+            urgency: 'High',
+        },
+        {
+            name: 'Hiranandani Gardens (Heritage & Somerset)',
+            ward: 'Ward S (Powai)',
+            type: 'Residential Society',
+            activeLeaks: 1,
+            criticalCount: 1,
+            avgResolutionHours: 2.8,
+            urgency: 'Critical',
+        },
+        {
+            name: 'Seawoods Estate (NRI Complex)',
+            ward: 'Ward T (Nerul/Palm Beach)',
+            type: 'Residential Society',
+            activeLeaks: 1,
+            criticalCount: 1,
+            avgResolutionHours: 6.5,
+            urgency: 'Critical',
+        },
+        {
+            name: 'Gokuldham Housing Society',
+            ward: 'Ward P/S (Goregaon E)',
+            type: 'Residential Society',
+            activeLeaks: 1,
+            criticalCount: 1,
+            avgResolutionHours: 3.5,
+            urgency: 'High',
+        },
+        {
+            name: 'Sardar Patel Institute of Technology (SPIT)',
+            ward: 'Ward K/W (Andheri W)',
+            type: 'College',
+            activeLeaks: 1,
+            criticalCount: 0,
+            avgResolutionHours: 5.1,
+            urgency: 'Medium',
+        },
+    ],
+};
+

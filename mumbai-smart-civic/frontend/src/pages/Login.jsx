@@ -1,148 +1,196 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { FiMail, FiLock, FiUser } from 'react-icons/fi';
-import api from '../utils/api';
+import { useNavigate } from 'react-router-dom';
+import { FiMail, FiLock, FiUser, FiDroplet } from 'react-icons/fi';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 
-const DEMO_ACCOUNTS = {
-    citizen: {
-        email: 'citizen@example.com',
-        password: 'Citizen@12345',
+const DEMO_PROFILES = {
+    student: {
+        email: 'aditya.deshmukh@vjti.ac.in',
+        name: 'Aditya Deshmukh',
+        role: 'citizen',
+        environment: 'College',
+        institution: 'Veermata Jijabai Technological Institute (VJTI)',
+        label: 'Student / College Reporter',
+    },
+    resident: {
+        email: 'kavita.menon@hiranandani.org',
+        name: 'Kavita Menon',
+        role: 'citizen',
+        environment: 'Residential',
+        institution: 'Hiranandani Gardens (Heritage Tower)',
+        label: 'Society Resident',
     },
     authority: {
-        email: 'authority@example.com',
-        password: 'Authority@12345',
-        authorityCode: 'MUM-COM-4404',
-    },
-    ngo: {
-        email: 'ngo@example.com',
-        name: 'Mumbai Care NGO',
+        email: 'rajesh.kulkarni@waterwatch.mumbai.gov.in',
+        name: 'Er. Rajesh Kulkarni',
+        role: 'authority',
+        authority_rank: 'Executive Engineer',
+        authority_level: 'Zone 2 (Colleges & Societies)',
+        label: 'MCGM / Water Authority',
     },
 };
 
 export default function Login({ onSwitch, isFlipped }) {
     const navigate = useNavigate();
-    const [email, setEmail] = useState(DEMO_ACCOUNTS.citizen.email);
-    const [password, setPassword] = useState(DEMO_ACCOUNTS.citizen.password);
+    const [email, setEmail] = useState('aditya.deshmukh@vjti.ac.in');
+    const [password, setPassword] = useState('WaterWatch@2026');
     const [loginAs, setLoginAs] = useState('citizen');
     const [authorityCode, setAuthorityCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const fillDemo = (mode) => {
-        if (mode === 'authority') {
-            setLoginAs('authority');
-            setEmail(DEMO_ACCOUNTS.authority.email);
-            setPassword(DEMO_ACCOUNTS.authority.password);
-            setAuthorityCode(DEMO_ACCOUNTS.authority.authorityCode);
-            return;
-        }
-        if (mode === 'ngo') {
-            handleNGOQuickLogin();
-            return;
-        }
-        setLoginAs('citizen');
-        setEmail(DEMO_ACCOUNTS.citizen.email);
-        setPassword(DEMO_ACCOUNTS.citizen.password);
-        setAuthorityCode('');
-    };
-
-    const handleNGOQuickLogin = async () => {
-        setError('');
+    const loginWithProfile = (profile) => {
         setLoading(true);
-        try {
-            const res = await api.post('/auth/mock-ngo-login');
-            const { access_token, role } = res.data;
-            const user = {
-                email: 'contact@ngosahayata.org',
-                name: 'NGO Sahayata',
-                role,
-            };
-            localStorage.setItem('token', access_token);
-            localStorage.setItem('user', JSON.stringify(user));
-            navigate('/ngo/dashboard', { replace: true });
-        } catch (err) {
-            setError(err.response?.data?.detail || 'NGO login failed. Is the backend running?');
-        } finally {
+        setError('');
+        setTimeout(() => {
+            const token = `mock-token-${Date.now()}-${profile.role}`;
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify({
+                name: profile.name,
+                email: profile.email,
+                role: profile.role,
+                environment: profile.environment || 'College',
+                institution: profile.institution || 'Mumbai Institution',
+                authority_rank: profile.authority_rank,
+                authority_level: profile.authority_level,
+            }));
             setLoading(false);
-        }
+            if (profile.role === 'authority' || profile.role === 'admin') {
+                navigate('/admin/dashboard', { replace: true });
+            } else {
+                navigate('/citizen/dashboard', { replace: true });
+            }
+        }, 300);
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
-        try {
-            let res;
-            if (loginAs === 'ngo') {
-                // Call real backend for NGO login
-                res = await api.post('/auth/mock-ngo-login');
-            } else {
-                const payload = {
-                    email,
-                    password,
-                    login_as: loginAs,
-                };
-                if (loginAs === 'authority') {
-                    payload.authority_code = authorityCode;
-                }
-                res = await api.post('/auth/login', payload);
-            }
-
-            const {
-                access_token,
-                role,
-                authority_rank,
-                authority_level,
-            } = res.data;
-
-            // Fetch user info using /me or use data from response
-            // For now, let's keep it simple: if ngo, we use a generic name if not returned
+        setTimeout(() => {
+            const role = loginAs === 'authority' ? 'authority' : 'citizen';
             const user = {
-                email: loginAs === 'ngo' ? 'contact@ngosahayata.org' : email,
-                name: loginAs === 'ngo' ? 'NGO Sahayata' : email.split('@')[0],
+                email,
+                name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
                 role,
-                authority_rank,
-                authority_level,
+                authority_rank: loginAs === 'authority' ? 'Supervising Engineer' : undefined,
+                environment: 'College',
             };
-
-            localStorage.setItem('token', access_token);
+            const token = `mock-token-${Date.now()}-${role}`;
+            localStorage.setItem('token', token);
             localStorage.setItem('user', JSON.stringify(user));
+            setLoading(false);
 
-            if (role === 'authority' || role === 'admin') {
+            if (role === 'authority') {
                 navigate('/admin/dashboard', { replace: true });
-            } else if (role === 'ngo') {
-                navigate('/ngo/dashboard', { replace: true });
             } else {
                 navigate('/citizen/dashboard', { replace: true });
             }
-        } catch (err) {
-            setError(err.response?.data?.detail || 'Login failed');
-        } finally {
-            setLoading(false);
-        }
+        }, 350);
     };
 
     return (
         <div className="glass-card-liquid" style={{ pointerEvents: isFlipped ? 'none' : 'auto', visibility: isFlipped ? 'hidden' : 'visible' }}>
-            <div className="auth-header-liquid auth-header-mini">
-                <div className="auth-brand-mark-liquid auth-brand-mark-mini">SC</div>
-                <h1>Smart Civic</h1>
-                <p>Welcome back</p>
+            <div className="auth-header-liquid auth-header-mini" style={{ textAlign: 'center' }}>
+                <div className="auth-brand-mark-liquid auth-brand-mark-mini" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)' }}>
+                    <FiDroplet size={22} color="#ffffff" />
+                </div>
+                <h1 style={{ fontSize: '22px', fontWeight: 800, marginTop: '8px', color: '#f8fafc' }}>Mumbai WaterWatch</h1>
+                <p style={{ fontSize: '12px', color: '#94a3b8' }}>College & Residential Water Wastage Monitoring</p>
             </div>
 
             {error && (
-                <div className="form-alert form-alert-danger" role="alert" style={{ marginBottom: '12px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)', color: '#feb2b2', padding: '8px 12px', fontSize: '12px', maxHeight: '60px', overflowY: 'auto' }}>
+                <div className="form-alert form-alert-danger" role="alert" style={{ marginBottom: '12px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)', color: '#feb2b2', padding: '8px 12px', fontSize: '12px' }}>
                     {error}
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="auth-form-liquid" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Quick 1-Click Demo Profiles */}
+            <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
+                    ⚡ Instant Demo Access
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
+                    <button
+                        type="button"
+                        onClick={() => loginWithProfile(DEMO_PROFILES.student)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: 'rgba(14, 165, 233, 0.12)',
+                            border: '1px solid rgba(14, 165, 233, 0.3)',
+                            color: '#38bdf8',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                        }}
+                    >
+                        <span>🎓 Student (VJTI Campus)</span>
+                        <span style={{ fontSize: '10px', background: 'rgba(14, 165, 233, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>Citizen</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => loginWithProfile(DEMO_PROFILES.resident)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            color: '#34d399',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                        }}
+                    >
+                        <span>🏢 Resident (Hiranandani Powai)</span>
+                        <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>Resident</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => loginWithProfile(DEMO_PROFILES.authority)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            border: '1px solid rgba(99, 102, 241, 0.35)',
+                            color: '#a5b4fc',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                        }}
+                    >
+                        <span>🛠️ Water Authority / Plumber Lead</span>
+                        <span style={{ fontSize: '10px', background: 'rgba(99, 102, 241, 0.25)', padding: '2px 6px', borderRadius: '4px' }}>Admin</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0', gap: '8px' }}>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Or Standard Login</span>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="auth-form-liquid" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <InputField
                     id="login-as"
-                    label="Login As"
+                    label="Portal Role"
                     as="select"
                     value={loginAs}
                     onChange={(e) => setLoginAs(e.target.value)}
@@ -150,16 +198,15 @@ export default function Login({ onSwitch, isFlipped }) {
                     icon={FiUser}
                     size="sm"
                 >
-                        <option value="citizen" style={{ background: '#1e293b' }}>Citizen</option>
-                        <option value="authority" style={{ background: '#1e293b' }}>Authority</option>
-                        <option value="ngo" style={{ background: '#1e293b' }}>NGO</option>
+                    <option value="citizen" style={{ background: '#1e293b' }}>Citizen / Student / Resident</option>
+                    <option value="authority" style={{ background: '#1e293b' }}>MCGM Water Authority / Admin</option>
                 </InputField>
 
                 <InputField
                     id="email"
                     type="email"
                     label="Email Address"
-                    placeholder="your@email.com"
+                    placeholder="student@college.edu or resident@society.in"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -185,63 +232,35 @@ export default function Login({ onSwitch, isFlipped }) {
                     <InputField
                         id="authority-code"
                         type="text"
-                        label="Authority Code"
-                        placeholder="MUM-XXX-XXXX"
+                        label="Official Department Code"
+                        placeholder="MCGM-WATER-2026"
                         value={authorityCode}
                         onChange={(e) => setAuthorityCode(e.target.value)}
-                        required
                         liquid
                         size="sm"
                     />
                 )}
 
-                <Button 
-                    type="submit" 
-                    fullWidth 
+                <Button
+                    type="submit"
+                    fullWidth
                     loading={loading}
                     className="btn-liquid-gradient"
-                    style={{ padding: '10px', fontSize: '14px' }}
+                    style={{ padding: '9px', fontSize: '13px', marginTop: '4px' }}
                 >
-                    {loading ? 'Authenticating...' : 'Login'}
+                    {loading ? 'Authenticating...' : 'Sign In to Portal'}
                 </Button>
             </form>
 
-            <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
-                <a href="#forgot" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none' }}>Forgot Password?</a>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', margin: '12px 0', gap: '10px' }}>
-                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
-                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quick Fill</span>
-                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
-            </div>
-
-            <div className="auth-quick-fill-row" style={{ display: 'flex', gap: '8px' }}>
+            <div className="auth-footer-text" style={{ textAlign: 'center', marginTop: '14px', color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
+                New campus or society user?{' '}
                 <button
                     type="button"
-                    onClick={() => fillDemo('citizen')}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '12px', cursor: 'pointer' }}
+                    onClick={onSwitch}
+                    style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: '600', cursor: 'pointer', padding: 0 }}
                 >
-                    Citizen
+                    Register Here
                 </button>
-                <button
-                    type="button"
-                    onClick={() => fillDemo('authority')}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '11px', cursor: 'pointer' }}
-                >
-                    Authority
-                </button>
-                <button
-                    type="button"
-                    onClick={() => fillDemo('ngo')}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '11px', cursor: 'pointer' }}
-                >
-                    NGO
-                </button>
-            </div>
-
-            <div className="auth-footer-text" style={{ textAlign: 'center', marginTop: '20px', color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>
-                Don't have an account? <button type="button" onClick={onSwitch} style={{ background: 'none', border: 'none', color: '#818cf8', fontWeight: '600', cursor: 'pointer', padding: 0 }}>Register</button>
             </div>
         </div>
     );

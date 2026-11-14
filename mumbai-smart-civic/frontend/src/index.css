@@ -28,31 +28,44 @@
                       border-color 0.5s ease;
 }
 
-/* Default Theme - Dark (True Black) */
+/* Default Theme - Dark (Accessible High-Contrast) */
 :root,
 :root[data-theme='dark'] {
-  --bg-base: #000000;
-  --bg-surface: #0a0a0a;
-  --bg-glass: rgba(255, 255, 255, 0.05);
-  --bg-glass-strong: rgba(255, 255, 255, 0.1);
-  --bg-input: #1a1a1a;
+  --bg-base: #09090b;
+  --bg-surface: #18181b;
+  --bg-surface-secondary: #202024;
+  --bg-glass: rgba(24, 24, 27, 0.85);
+  --bg-glass-strong: rgba(39, 39, 42, 0.8);
+  --bg-input: #27272a;
   
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #64748b;
-  --text-inverse: #000000;
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --text-inverse: #09090b;
 
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-subtle: rgba(255, 255, 255, 0.05);
-  --border-default: rgba(255, 255, 255, 0.1);
+  --glass-border: #3f3f46;
+  --glass-border-subtle: #27272a;
+  --border-default: #3f3f46;
+  --border-subtle: #27272a;
+
+  /* Filter bar & Inactive Buttons (High Contrast) */
+  --btn-inactive-bg: #292929;
+  --btn-inactive-text: #e5e7eb;
+  --btn-inactive-border: #444444;
+  --btn-inactive-hover-bg: #383838;
+  --btn-inactive-hover-text: #ffffff;
+  --btn-active-bg: #2563eb;
+  --btn-active-text: #ffffff;
+  --btn-active-border: #2563eb;
+  --filter-label: #a1a1aa;
   
   --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
   --shadow-liquid: 0 10px 40px rgba(0, 0, 0, 0.5);
 
   /* Liquid Glass Specifics */
-  --bg-liquid: rgba(255, 255, 255, 0.4);
-  --border-liquid: rgba(255, 255, 255, 0.25);
-  --bg-input-liquid: rgba(255, 255, 255, 0.15);
+  --bg-liquid: rgba(24, 24, 27, 0.8);
+  --border-liquid: rgba(255, 255, 255, 0.15);
+  --bg-input-liquid: rgba(39, 39, 42, 0.9);
   --border-input-liquid: rgba(255, 255, 255, 0.2);
   
   color-scheme: dark;
@@ -62,24 +75,36 @@
 :root[data-theme='light'] {
   --bg-base: #f8fafc;
   --bg-surface: #ffffff;
-  --bg-glass: rgba(255, 255, 255, 0.7);
-  --bg-glass-strong: rgba(255, 255, 255, 0.9);
+  --bg-surface-secondary: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass-strong: rgba(241, 245, 249, 0.9);
   --bg-input: #f1f5f9;
 
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
   --text-inverse: #ffffff;
 
-  --glass-border: rgba(148, 163, 184, 0.2);
-  --glass-border-subtle: rgba(148, 163, 184, 0.1);
-  --border-default: rgba(148, 163, 184, 0.3);
+  --glass-border: #d1d5db;
+  --glass-border-subtle: #e5e7eb;
+  --border-default: #d1d5db;
+  --border-subtle: #e5e7eb;
+
+  /* Filter bar & Inactive Buttons */
+  --btn-inactive-bg: #f3f4f6;
+  --btn-inactive-text: #374151;
+  --btn-inactive-border: #d1d5db;
+  --btn-inactive-hover-bg: #e5e7eb;
+  --btn-inactive-hover-text: #111827;
+  --btn-active-bg: #2563eb;
+  --btn-active-text: #ffffff;
+  --btn-active-border: #2563eb;
+  --filter-label: #4b5563;
 
   --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
   --shadow-liquid: 0 10px 40px rgba(0, 0, 0, 0.1);
 
-  /* Liquid Glass Specifics - Slightly more opaque for readability */
-  --bg-liquid: rgba(255, 255, 255, 0.6);
+  --bg-liquid: rgba(255, 255, 255, 0.85);
   --border-liquid: rgba(0, 0, 0, 0.1);
   --bg-input-liquid: rgba(0, 0, 0, 0.05);
   --border-input-liquid: rgba(0, 0, 0, 0.1);
@@ -1096,24 +1121,30 @@ ul {
 }
 
 .status-pending {
-  background: var(--warning-bg);
-  color: #B45309;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
 }
 
 .status-resolved {
-  background: var(--success-bg);
-  color: #047857;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
 }
 
 .status-rejected {
-  background: var(--danger-bg);
-  color: #B91C1C;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
 .status-processing {
-  background: var(--info-bg);
-  color: #0369A1;
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
 }
+
+/* Light theme overrides for status badges */
+:root[data-theme='light'] .status-pending { color: #b45309; background: rgba(245, 158, 11, 0.12); }
+:root[data-theme='light'] .status-resolved { color: #047857; background: rgba(16, 185, 129, 0.1); }
+:root[data-theme='light'] .status-rejected { color: #b91c1c; background: rgba(239, 68, 68, 0.1); }
+:root[data-theme='light'] .status-processing { color: #0369a1; background: rgba(14, 165, 233, 0.1); }
 
 /* Banner */
 .banner-hero {
@@ -1531,19 +1562,95 @@ ul {
 }
 
 .btn-primary-filled {
-  background: var(--primary-gradient);
-  color: #fff;
-  box-shadow: 0 8px 20px -10px rgba(37, 99, 235, 0.6);
+  background: var(--btn-active-bg, #2563eb);
+  color: var(--btn-active-text, #ffffff) !important;
+  border: 1px solid var(--btn-active-border, #2563eb);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .btn-primary-filled:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
   transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
 }
 
 .btn-ghost {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(148, 163, 184, 0.2);
-  color: var(--text-secondary);
+  background: var(--btn-inactive-bg, #292929);
+  border: 1px solid var(--btn-inactive-border, #444444);
+  color: var(--btn-inactive-text, #e5e7eb) !important;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-ghost:hover {
+  background: var(--btn-inactive-hover-bg, #383838);
+  border-color: #555555;
+  color: var(--btn-inactive-hover-text, #ffffff) !important;
+}
+
+/* Accessible Filter Bar & Segmented Controls */
+.filter-bar-container {
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.filter-label {
+  color: var(--filter-label, #a1a1aa) !important;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.filter-btn {
+  background: var(--btn-inactive-bg, #292929);
+  color: var(--btn-inactive-text, #e5e7eb) !important;
+  border: 1px solid var(--btn-inactive-border, #444444);
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+  background: var(--btn-inactive-hover-bg, #383838);
+  border-color: #555555;
+  color: var(--btn-inactive-hover-text, #ffffff) !important;
+}
+
+.filter-btn.active,
+.filter-btn[data-active="true"] {
+  background: var(--btn-active-bg, #2563eb) !important;
+  color: var(--btn-active-text, #ffffff) !important;
+  border-color: var(--btn-active-border, #2563eb) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.card-glass,
+.glass-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-glass:hover,
+.glass-card:hover {
+  border-color: var(--glass-border);
 }
 
 .btn-success {
@@ -1573,17 +1680,20 @@ ul {
 }
 
 .btn-secondary-glass {
-  background: var(--bg-glass-strong);
+  background: var(--btn-inactive-bg, #292929);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
+  border: 1px solid var(--btn-inactive-border, #444444);
+  color: var(--btn-inactive-text, #e5e7eb) !important;
   box-shadow: var(--shadow-sm);
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .btn-secondary-glass:hover:not(:disabled) {
-  background: var(--bg-surface);
-  border-color: var(--primary-light);
+  background: var(--btn-inactive-hover-bg, #383838);
+  border-color: #555555;
+  color: var(--btn-inactive-hover-text, #ffffff) !important;
   box-shadow: 0 0 12px var(--primary-subtle);
   transform: translateY(-1px);
 }
@@ -2881,7 +2991,8 @@ textarea {
 .ui-input:focus-visible {
   outline: none;
   border-color: rgba(37, 99, 235, 0.75);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-input);
+  color: var(--text-primary);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
 }
 
@@ -4345,3 +4456,96 @@ textarea {
   }
 }
 
+
+/* ============================================================
+   WATERWATCH — Global Accessibility & Contrast Patches
+   Applied after all component styles to ensure readable UI.
+   ============================================================ */
+
+/* Ensure all plain inputs/selects/textareas in forms use token bg */
+input:not([class]),
+select:not([class]),
+textarea:not([class]) {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+input:not([class])::placeholder,
+textarea:not([class])::placeholder {
+  color: var(--text-muted);
+}
+
+/* Select option items — browsers style these independently but we do our best */
+select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Focus ring for inline-styled inputs that skip .ui-input */
+input[style]:focus,
+select[style]:focus,
+textarea[style]:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.65);
+  outline-offset: 1px;
+}
+
+/* Progress bar tracks that use rgba(255,255,255,0.1) — OK in dark, also OK in light */
+/* Leaflet popup overrides for consistent look inside map tooltips */
+.leaflet-popup-content-wrapper {
+  background: #18181b !important;
+  border: 1px solid #3f3f46 !important;
+  color: #f9fafb !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 10px !important;
+}
+
+.leaflet-popup-tip {
+  background: #3f3f46 !important;
+}
+
+.leaflet-popup-content {
+  color: #f9fafb !important;
+  margin: 10px 14px !important;
+}
+
+/* Table rows — ensure cells inherit readable color by default */
+.table-glass-container td,
+.table-glass-container th {
+  color: var(--text-secondary);
+}
+
+.table-glass-container th {
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: var(--bg-glass-strong);
+}
+
+/* Ensure the dark card sections don't go transparent */
+.card-glass,
+.glass-card {
+  background: var(--bg-surface) !important;
+}
+
+/* Pagination / muted counts */
+.results-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Tooltip dark surface */
+[data-tooltip]:hover::after {
+  background: #18181b;
+  color: #f9fafb;
+  border: 1px solid #3f3f46;
+}
+
+/* Disabled inputs */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

@@ -1,0 +1,43 @@
+export const ANNOUNCEMENTS = [
+    {
+        id: 'ann-1',
+        title: 'Pre-Monsoon Storage Tank & Float Valve Audit for All Colleges',
+        date: '2026-11-12',
+        source: 'MCGM Hydraulic Engineer Department',
+        badge: 'Official Directive',
+        severity: 'high',
+        summary: 'All degree colleges and technical institutes across Mumbai must conduct physical inspections of rooftop storage tanks to eliminate float-valve failures causing massive nighttime overflow.',
+        details: 'Failure to replace defective ball valves before the designated deadline will attract water audit notices under BMC Water Supply Bylaws Section 274. Institutions can request technical assistance via the Mumbai WaterWatch portal.',
+    },
+    {
+        id: 'ann-2',
+        title: 'Bhandup Pumping Complex Sensor Integration Complete',
+        date: '2026-11-10',
+        source: 'Mumbai WaterWatch Central Command',
+        badge: 'Infrastructure Update',
+        severity: 'info',
+        summary: 'Smart acoustic leak detection sensors deployed across the Powai–Bhandup transmission corridor have already prevented an estimated 1.2 million liters of distribution loss.',
+        details: 'College campuses in Ward S (IIT Bombay, NITIE/IIM Mumbai) and adjacent residential societies can view real-time pipeline pressure metrics on the portal analytics tab.',
+    },
+    {
+        id: 'ann-3',
+        title: 'Water Rebate Incentive for Societies Achieving Zero Common-Area Leakage',
+        date: '2026-11-05',
+        source: 'Mumbai Housing Societies Federation & BMC',
+        badge: 'Sustainability Incentive',
+        severity: 'success',
+        summary: 'Residential housing societies that report and resolve all internal riser and tank leaks within 24 hours of reporting are eligible for a 7% municipal water cess rebate.',
+        details: 'Societies must maintain their verified resolution logs on Mumbai WaterWatch. Over 40 housing complexes in Powai, Lower Parel, and Goregaon have already qualified.',
+    },
+    {
+        id: 'ann-4',
+        title: 'Inter-College Campus Water-Audit Drive 2026',
+        date: '2026-10-28',
+        source: 'Mumbai University Sustainability Cell & VJTI',
+        badge: 'Campus Drive',
+        severity: 'info',
+        summary: 'Student volunteer teams across 15 engineering and degree colleges are conducting tap aeration and laboratory flow audits to save 500,000 liters daily.',
+        details: 'Students can report dripping hostel taps and laboratory condensation line leaks directly via the citizen dashboard. Every verified fix awards Green Campus volunteer credits.',
+    },
+];
+

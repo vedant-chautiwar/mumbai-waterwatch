@@ -1,244 +1,247 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import api from '../../utils/api';
-
-function toErrorMessage(err, fallback = 'Action failed') {
-    const detail = err?.response?.data?.detail;
-    if (typeof detail === 'string' && detail.trim()) return detail;
-    if (Array.isArray(detail) && detail.length > 0) {
-        const first = detail[0];
-        if (typeof first === 'string') return first;
-        if (first && typeof first === 'object' && typeof first.msg === 'string') return first.msg;
-    }
-    if (detail && typeof detail === 'object' && typeof detail.msg === 'string') return detail.msg;
-    return fallback;
-}
-
-const defaultFormState = {
-    status: 'In Progress',
-    resolution_note: '',
-    fixed_image: null,
-    imagePreview: '',
-};
-
-function resolveFormState(map, id, status) {
-    const current = map[id];
-    if (current) return current;
-    const seed = { ...defaultFormState };
-    if (status === 'Open') seed.status = 'In Progress';
-    return seed;
-}
+import React, { useState, useEffect } from 'react';
+import { MdCheckCircle, MdEngineering, MdWaterDrop, MdPhotoCamera, MdClose } from 'react-icons/md';
+import {
+    getStoredReports,
+    updateReportStatus,
+    MAINTENANCE_TEAMS,
+    subscribeToWaterWatch,
+} from '../../services/waterWatchService';
 
 export default function ResolveComplaint() {
-    const [complaints, setComplaints] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [reports, setReports] = useState([]);
+    const [selectedReportId, setSelectedReportId] = useState('');
+    const [note, setNote] = useState('');
+    const [team, setTeam] = useState(MAINTENANCE_TEAMS[0].name);
+    const [status, setStatus] = useState('Resolved');
     const [toast, setToast] = useState(null);
-    const [formsById, setFormsById] = useState({});
-    const [submittingId, setSubmittingId] = useState('');
-    const formsRef = useRef(formsById);
 
-    const pendingComplaints = useMemo(
-        () => complaints.filter((c) => c.status !== 'Resolved'),
-        [complaints],
-    );
-
-    const fetchComplaints = async () => {
-        try {
-            const res = await api.get('/a/complaints');
-            const data = Array.isArray(res.data) ? res.data : [];
-            setComplaints(data);
-        } catch {
-            setComplaints([]);
-        } finally {
-            setLoading(false);
+    const refreshData = () => {
+        const list = getStoredReports();
+        setReports(list);
+        if (!selectedReportId && list.length > 0) {
+            setSelectedReportId(list[0].id);
         }
     };
 
     useEffect(() => {
-        formsRef.current = formsById;
-    }, [formsById]);
-
-    useEffect(() => {
-        fetchComplaints();
-        return () => {
-            Object.values(formsRef.current).forEach((row) => {
-                if (row?.imagePreview) URL.revokeObjectURL(row.imagePreview);
-            });
-        };
+        refreshData();
+        const unsubscribe = subscribeToWaterWatch(refreshData);
+        return () => unsubscribe();
     }, []);
 
-    const updateForm = (id, patch) => {
-        setFormsById((prev) => ({
-            ...prev,
-            [id]: {
-                ...resolveFormState(prev, id),
-                ...patch,
-            },
-        }));
-    };
+    const selectedReport = reports.find((r) => r.id === selectedReportId) || reports[0];
 
-    const handleFileChange = (id, file) => {
-        const current = resolveFormState(formsById, id);
-        if (current.imagePreview) URL.revokeObjectURL(current.imagePreview);
-        updateForm(id, {
-            fixed_image: file || null,
-            imagePreview: file ? URL.createObjectURL(file) : '',
-        });
-    };
+    const handleResolve = (e) => {
+        e.preventDefault();
+        if (!selectedReport) return;
 
-    const submitStatusUpdate = async (complaintId, currentStatus) => {
-        const state = resolveFormState(formsById, complaintId, currentStatus);
-        if (state.status === 'Resolved' && !state.fixed_image) {
-            setToast({ type: 'error', message: 'Resolved complaints require fixed-work image proof' });
-            setTimeout(() => setToast(null), 3000);
-            return;
-        }
+        const fixedImage = status === 'Resolved'
+            ? 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=800&auto=format&fit=crop'
+            : null;
 
-        const formData = new FormData();
-        formData.append('status', state.status);
-        if (state.resolution_note?.trim()) {
-            formData.append('resolution_note', state.resolution_note.trim());
-        }
-        if (state.fixed_image) {
-            formData.append('fixed_image', state.fixed_image);
-        }
-
-        setSubmittingId(complaintId);
-        try {
-            const res = await api.post(`/a/complaints/${complaintId}/status-with-proof`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-
-            const updated = res.data;
-            setComplaints((prev) => prev.map((row) => (row.id === complaintId ? { ...row, ...updated } : row)));
-
-            if (state.imagePreview) URL.revokeObjectURL(state.imagePreview);
-            setFormsById((prev) => {
-                const next = { ...prev };
-                delete next[complaintId];
-                return next;
-            });
-
-            setToast({ type: 'success', message: `Complaint updated to ${state.status}` });
-        } catch (err) {
-            setToast({ type: 'error', message: toErrorMessage(err) });
-        } finally {
-            setSubmittingId('');
-            setTimeout(() => setToast(null), 3000);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="page-container">
-                <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 20 }}>Resolve Complaints</h2>
-                <div className="skeleton" style={{ height: 140, borderRadius: 16 }} />
-            </div>
+        updateReportStatus(
+            selectedReport.id,
+            status,
+            note || `Maintenance action completed by ${team}.`,
+            fixedImage,
+            team
         );
-    }
+
+        setToast(`Report ${selectedReport.id} successfully updated to ${status}!`);
+        setNote('');
+        refreshData();
+        setTimeout(() => setToast(null), 3000);
+    };
 
     return (
-        <div className="page-container">
-            <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                Resolve Complaints With Proof
-            </h2>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
-                Pending complaints: {pendingComplaints.length} | Resolved complaints: {complaints.length - pendingComplaints.length}
-            </p>
-
-            {pendingComplaints.length === 0 ? (
-                <div className="glass-panel" style={{ padding: 40, textAlign: 'center' }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>No pending complaints</h3>
+        <div className="page-container" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            {toast && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        zIndex: 9999,
+                        background: '#10b981',
+                        color: '#fff',
+                        padding: '12px 20px',
+                        borderRadius: '10px',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    <MdCheckCircle size={20} />
+                    <span>{toast}</span>
                 </div>
-            ) : (
-                <div style={{ display: 'grid', gap: 16 }}>
-                    {pendingComplaints.map((c) => {
-                        const form = resolveFormState(formsById, c.id, c.status);
-                        return (
-                            <div key={c.id} className="glass-panel resolve-card" style={{ padding: 20, border: '1px solid var(--glass-border-subtle)', background: 'var(--bg-glass-strong)' }}>
-                                <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    Report #{c.id}
+            )}
+
+            <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', marginBottom: '4px' }}>
+                    <MdCheckCircle size={22} />
+                    <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Rapid Response & Resolution
+                    </span>
+                </div>
+                <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Resolve Leakages & Dispatch Teams
+                </h1>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Assign municipal or campus plumbing maintenance squads and record verified repair actions.
+                </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                {/* Left: Select Leakage Case */}
+                <div className="card-glass" style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '14px', color: 'var(--text-primary)' }}>
+                        Select Active Leakage Case
+                    </h3>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '520px', overflowY: 'auto' }}>
+                        {reports.map((r) => {
+                            const isSelected = r.id === selectedReportId;
+                            const isResolved = r.status === 'Resolved';
+
+                            return (
+                                <div
+                                    key={r.id}
+                                    onClick={() => setSelectedReportId(r.id)}
+                                    style={{
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        background: isSelected ? 'rgba(14, 165, 233, 0.15)' : 'var(--bg-glass, rgba(255,255,255,0.02))',
+                                        border: `1px solid ${isSelected ? '#0ea5e9' : 'var(--border-default)'}`,
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: 700, fontFamily: 'monospace', color: '#38bdf8' }}>{r.id}</span>
+                                        <span style={{ fontWeight: 700, color: isResolved ? '#10b981' : '#f59e0b' }}>{r.status}</span>
+                                    </div>
+                                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)', marginBottom: '2px' }}>
+                                        {r.title}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                        {r.institution} • {r.ward}
+                                    </div>
                                 </div>
-                                <h3 style={{ marginBottom: 10, fontSize: 18, color: 'var(--text-primary)' }}>{c.description?.slice(0, 120) || 'Complaint'}</h3>
-                                <p style={{ marginBottom: 16, color: 'var(--text-muted)', fontSize: 13 }}>
-                                    {c.category} | {c.ward} | Status: <strong style={{ color: 'var(--text-primary)' }}>{c.status}</strong>
-                                </p>
+                            );
+                        })}
+                    </div>
+                </div>
 
-                                {c.image_url && (
-                                    <div className="resolve-image-row" style={{ marginBottom: 20, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--glass-border-subtle)' }}>
-                                        <img src={c.image_url} alt="Complaint evidence" style={{ width: '100%', maxHeight: 300, objectFit: 'cover' }} />
-                                        <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.4)', fontSize: 12, color: '#fff' }}>Citizen evidence image</div>
-                                    </div>
-                                )}
-
-                                <div className="resolve-form-grid" style={{ gap: 16 }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Action Status</label>
-                                        <select
-                                            className="glass-input-liquid"
-                                            value={form.status}
-                                            onChange={(e) => updateForm(c.id, { status: e.target.value })}
-                                        >
-                                            <option value="In Progress">In Progress</option>
-                                            <option value="Resolved">Resolved</option>
-                                            <option value="Open">Open</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Resolution Note</label>
-                                        <textarea
-                                            className="glass-input-liquid"
-                                            value={form.resolution_note}
-                                            onChange={(e) => updateForm(c.id, { resolution_note: e.target.value })}
-                                            placeholder="Formal action note for audit trail..."
-                                            style={{ minHeight: 80 }}
-                                        />
-                                    </div>
-
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Fixed-work Image Proof {form.status === 'Resolved' ? '(required)' : '(optional)'}</label>
-                                        <input
-                                            type="file"
-                                            className="glass-input-liquid"
-                                            accept="image/*"
-                                            capture="environment"
-                                            onChange={(e) => handleFileChange(c.id, e.target.files?.[0] || null)}
-                                            style={{ padding: '10px' }}
-                                        />
-                                    </div>
-
-                                    {form.imagePreview && (
-                                        <div className="resolve-preview-wrap" style={{ marginTop: 12, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--primary)' }}>
-                                            <img src={form.imagePreview} alt="Resolution preview" style={{ width: '100%', maxHeight: 200, objectFit: 'cover' }} />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-                                    <button
-                                        onClick={() => submitStatusUpdate(c.id, c.status)}
-                                        className="btn-primary-filled"
-                                        style={{ width: '100%', padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 14 }}
-                                        disabled={submittingId === c.id}
-                                    >
-                                        {submittingId === c.id ? 'Syncing with Ledger...' : `Finish Action: ${form.status}`}
-                                    </button>
+                {/* Right: Resolution & Dispatch Form */}
+                {selectedReport && (
+                    <div className="card-glass" style={{ padding: '24px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div>
+                                <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700 }}>
+                                    {selectedReport.id}
+                                </span>
+                                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '2px 0 0 0' }}>
+                                    {selectedReport.title}
+                                </h3>
+                                <div style={{ fontSize: '12px', color: '#0ea5e9', marginTop: '2px' }}>
+                                    {selectedReport.institution} ({selectedReport.location})
                                 </div>
                             </div>
-                        );
-                    })}
-                </div>
-            )}
+                        </div>
 
-            {toast && (
-                <div style={{
-                    position: 'fixed', bottom: 24, right: 24, padding: '10px 18px',
-                    borderRadius: 12, color: '#fff',
-                    background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)',
-                }}>
-                    {toast.message}
-                </div>
-            )}
+                        <form onSubmit={handleResolve}>
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Update Status:
+                                </label>
+                                <select
+                                    value={status}
+                                    onChange={(e) => setStatus(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-input, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '13px',
+                                    }}
+                                >
+                                    <option value="In Progress">In Progress (Plumber On Site)</option>
+                                    <option value="Under Review">Under Review</option>
+                                    <option value="Resolved">Resolved (Leak Arrested)</option>
+                                </select>
+                            </div>
+
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Assign / Reassign Squad:
+                                </label>
+                                <select
+                                    value={team}
+                                    onChange={(e) => setTeam(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-input, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '13px',
+                                    }}
+                                >
+                                    {MAINTENANCE_TEAMS.map((t) => (
+                                        <option key={t.id} value={t.name}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Action / Repair Log Note:
+                                </label>
+                                <textarea
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    rows={3}
+                                    placeholder="Enter repair details (e.g. replaced ball float valve, installed new 2.5 bar regulator, tested for 30 minutes with zero seepage)..."
+                                    required
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-input, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '13px',
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary-filled"
+                                    style={{
+                                        padding: '10px 22px',
+                                        fontSize: '13px',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                    }}
+                                >
+                                    <MdCheckCircle size={18} />
+                                    <span>Submit Resolution Action</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

@@ -1,421 +1,546 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+    MdWaterDrop,
+    MdWarning,
+    MdBuild,
     MdCheckCircle,
-    MdInsights,
     MdPending,
-    MdPeople,
-    MdReport,
-    MdWarningAmber,
-    MdCall,
+    MdEco,
+    MdEngineering,
+    MdApartment,
+    MdLocationOn,
+    MdEdit,
+    MdSearch,
+    MdClose,
+    MdAssignmentInd,
+    MdArrowForward,
 } from 'react-icons/md';
-import { SkeletonBanner, SkeletonStats, SkeletonTable } from '../../components/Skeleton';
-import Button from '../../components/ui/Button';
-import api from '../../utils/api';
+import {
+    getStoredReports,
+    getWaterWatchStats,
+    subscribeToWaterWatch,
+    updateReportStatus,
+    assignMaintenanceTeam,
+    MAINTENANCE_TEAMS,
+} from '../../services/waterWatchService';
+import ReportDetailsModal from '../../components/ReportDetailsModal';
 
-const BANNER_IMG = 'https://etimg.etb2bimg.com/thumb/msid-64080572%2Cimgsize-1682393%2Cwidth-1200%2Cheight%3D627%2Coverlay-etcio%2Cresizemode-75/internet-of-things/bscdcl-launches-indias-first-integrated-control-and-command-centre-in-madhya-pradesh.jpg';
-const ADMIN_REFRESH_MS = 15000;
-
-function toErrorMessage(err, fallback = 'Action failed') {
-    const detail = err?.response?.data?.detail;
-    if (typeof detail === 'string' && detail.trim()) return detail;
-    if (Array.isArray(detail) && detail.length > 0) {
-        const first = detail[0];
-        if (typeof first === 'string') return first;
-        if (first && typeof first === 'object' && typeof first.msg === 'string') return first.msg;
-    }
-    return fallback;
+function getStatusBadge(status) {
+    const s = String(status || '').toLowerCase();
+    if (s.includes('resolv')) return { label: 'Resolved', bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981' };
+    if (s.includes('progress')) return { label: 'In Progress', bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' };
+    if (s.includes('review')) return { label: 'Under Review', bg: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' };
+    return { label: 'Open', bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' };
 }
 
-function formatPeople(value) {
-    const number = Number(value || 0);
-    if (!Number.isFinite(number)) return '-';
-    return number.toLocaleString();
-}
-
-function impactBarColor(priority) {
-    if (priority === 'HIGH') return 'linear-gradient(90deg, #ef4444, #f97316)';
-    if (priority === 'MEDIUM') return 'linear-gradient(90deg, #f59e0b, #facc15)';
-    return 'linear-gradient(90deg, #10b981, #34d399)';
-}
-
-function impactPriorityClass(priority) {
-    return String(priority || 'LOW').toLowerCase();
-}
-
-function toStatusClass(status) {
-    return String(status || 'pending').toLowerCase().replace(/\s+/g, '-');
+function getSeverityBadge(severity) {
+    const s = String(severity || '').toLowerCase();
+    if (s === 'critical') return { bg: '#dc2626', color: '#fff' };
+    if (s === 'high') return { bg: '#ea580c', color: '#fff' };
+    if (s === 'medium') return { bg: '#f59e0b', color: '#fff' };
+    return { bg: '#059669', color: '#fff' };
 }
 
 export default function AdminDashboard() {
-    const [complaints, setComplaints] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [updatingIds, setUpdatingIds] = useState([]);
-    const [toast, setToast] = useState(null);
-    const [sourceFilter, setSourceFilter] = useState('all');
+    const navigate = useNavigate();
+    const [reports, setReports] = useState([]);
+    const [stats, setStats] = useState({
+        totalReports: 0,
+        pendingRepairs: 0,
+        leaksUnderRepair: 0,
+        resolvedLeaks: 0,
+        criticalLeaks: 0,
+        estimatedWaterWastageLiters: 0,
+        estimatedWaterSavedLiters: 0,
+        tankerEquivalentSaved: 0,
+    });
+    const [statusFilter, setStatusFilter] = useState('All');
+    const [envFilter, setEnvFilter] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
 
-    const fetchComplaints = async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
-            const complaintsRes = await api.get('/a/complaints');
-            const allComplaints = Array.isArray(complaintsRes.data)
-                ? complaintsRes.data
-                : complaintsRes.data.complaints || [];
-            setComplaints(allComplaints);
-            setError('');
-        } catch (err) {
-            setError(toErrorMessage(err, 'Unable to load authority dashboard'));
-            if (!silent) setComplaints([]);
-        } finally {
-            if (!silent) setLoading(false);
-        }
+    // Modals
+    const [selectedReport, setSelectedReport] = useState(null);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [editingReport, setEditingReport] = useState(null);
+    const [editStatus, setEditStatus] = useState('In Progress');
+    const [editTeam, setEditTeam] = useState(MAINTENANCE_TEAMS[0].name);
+    const [editNote, setEditNote] = useState('');
+    const [toast, setToast] = useState(null);
+
+    const refreshData = () => {
+        setReports(getStoredReports());
+        setStats(getWaterWatchStats());
     };
 
     useEffect(() => {
-        fetchComplaints(false);
-        const timer = setInterval(() => fetchComplaints(true), ADMIN_REFRESH_MS);
-        return () => clearInterval(timer);
+        refreshData();
+        const unsubscribe = subscribeToWaterWatch(refreshData);
+        return () => unsubscribe();
     }, []);
 
-    const stats = useMemo(() => {
-        const total = complaints.length;
-        const resolved = complaints.filter((c) => c.status === 'Resolved').length;
-        const pending = complaints.filter((c) => c.status !== 'Resolved').length;
-        const citizens = new Set(complaints.map((c) => c.user_id)).size;
-        const avgImpact = total > 0
-            ? Math.round(complaints.reduce((sum, c) => sum + Number(c.impact_score || 0), 0) / total)
-            : 0;
-        return { total, resolved, pending, citizens, avgImpact };
-    }, [complaints]);
+    const filteredReports = useMemo(() => {
+        return reports.filter((r) => {
+            const matchesStatus =
+                statusFilter === 'All' ||
+                (statusFilter === 'Pending' && r.status !== 'Resolved') ||
+                (r.status && r.status.toLowerCase() === statusFilter.toLowerCase());
+            const matchesEnv =
+                envFilter === 'All' || r.environment === envFilter;
+            const matchesSearch =
+                !searchQuery.trim() ||
+                (r.id && r.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (r.title && r.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (r.institution && r.institution.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (r.location && r.location.toLowerCase().includes(searchQuery.toLowerCase()));
+            return matchesStatus && matchesEnv && matchesSearch;
+        });
+    }, [reports, statusFilter, envFilter, searchQuery]);
 
-    const rankedComplaints = useMemo(() => {
-        return [...complaints]
-            .filter((c) => sourceFilter === 'all' || c.source === sourceFilter)
-            .sort((a, b) => {
-                if (Number(b.impact_score || 0) !== Number(a.impact_score || 0)) {
-                    return Number(b.impact_score || 0) - Number(a.impact_score || 0);
-                }
-                if (Number(b.priority_score || 0) !== Number(a.priority_score || 0)) {
-                    return Number(b.priority_score || 0) - Number(a.priority_score || 0);
-                }
-                return new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime();
-            });
-    }, [complaints, sourceFilter]);
-
-    const recent = useMemo(() => rankedComplaints.slice(0, 5), [rankedComplaints]);
-    const actionable = useMemo(() => rankedComplaints.filter((c) => c.status !== 'Resolved').slice(0, 8), [rankedComplaints]);
-    const recommendedActions = useMemo(() => actionable.slice(0, 3), [actionable]);
-
-    const topToday = useMemo(() => {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        return rankedComplaints.find((c) => {
-            const created = c?.created_at ? new Date(c.created_at) : null;
-            return created && created >= start;
-        }) || null;
-    }, [rankedComplaints]);
-
-    const updateStatus = async (complaintId, status) => {
-        if (updatingIds.includes(complaintId)) return;
-        setUpdatingIds((prev) => [...prev, complaintId]);
-        try {
-            const res = await api.patch(`/a/complaints/${complaintId}/status`, { status });
-            const updated = res?.data || {};
-            setComplaints((prev) => prev.map((row) => (row.id === complaintId ? { ...row, ...updated } : row)));
-            setToast({ type: 'success', message: `Complaint moved to ${status}` });
-            fetchComplaints(true);
-        } catch (err) {
-            setToast({ type: 'error', message: toErrorMessage(err) });
-        } finally {
-            setUpdatingIds((prev) => prev.filter((id) => id !== complaintId));
-            setTimeout(() => setToast(null), 2500);
-        }
+    const openEditModal = (report, e) => {
+        if (e) e.stopPropagation();
+        setEditingReport(report);
+        setEditStatus(report.status === 'Open' ? 'In Progress' : report.status);
+        setEditTeam(report.assignedTeam || MAINTENANCE_TEAMS[0].name);
+        setEditNote(`Updated status for ${report.id} on ${new Date().toLocaleDateString()}`);
     };
 
-    if (loading) {
-        return (
-            <div className="page-container">
-                <SkeletonBanner />
-                <SkeletonStats />
-                <div className="table-glass-container"><SkeletonTable /></div>
-            </div>
+    const handleSaveEdit = (e) => {
+        e.preventDefault();
+        if (!editingReport) return;
+
+        const fixedImg = editStatus === 'Resolved'
+            ? 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=800&auto=format&fit=crop'
+            : null;
+
+        updateReportStatus(
+            editingReport.id,
+            editStatus,
+            editNote,
+            fixedImg,
+            editTeam
         );
-    }
+
+        setEditingReport(null);
+        refreshData();
+        setToast(`Report ${editingReport.id} successfully updated to ${editStatus}!`);
+        setTimeout(() => setToast(null), 3000);
+    };
 
     return (
         <div className="page-container">
-            <div className="banner-hero">
-                <img src={BANNER_IMG} alt="Command Centre" loading="lazy" />
-                <div className="banner-content">
-                    <h2>Authority Command Centre</h2>
-                    <div className="admin-hero-chips">
-                        <span className="badge-pill admin-hero-chip">Live Queue</span>
-                        <span className="badge-pill admin-hero-chip">Refresh: {ADMIN_REFRESH_MS / 1000}s</span>
-                    </div>
-                </div>
-            </div>
-
-            {error && <div className="progress-error" style={{ marginTop: 10 }}>{error}</div>}
-
-            <div className="dashboard-grid">
-                <div className="card-stat-glass">
-                    <div className="card-header-flex">
-                        <div className="card-icon-box stat-icon-info"><MdReport /></div>
-                    </div>
-                    <div className="card-value-large">{stats.total}</div>
-                    <div className="card-label-sub">Total Complaints</div>
-                </div>
-
-                <div className="card-stat-glass">
-                    <div className="card-header-flex">
-                        <div className="card-icon-box stat-icon-success"><MdCheckCircle /></div>
-                    </div>
-                    <div className="card-value-large">{stats.resolved}</div>
-                    <div className="card-label-sub">Resolved Cases</div>
-                </div>
-
-                <div className="card-stat-glass">
-                    <div className="card-header-flex">
-                        <div className="card-icon-box stat-icon-warning"><MdPending /></div>
-                    </div>
-                    <div className="card-value-large">{stats.pending}</div>
-                    <div className="card-label-sub">Pending Action</div>
-                </div>
-
-                <div className="card-stat-glass">
-                    <div className="card-header-flex">
-                        <div className="card-icon-box stat-icon-purple"><MdPeople /></div>
-                    </div>
-                    <div className="card-value-large">{stats.citizens}</div>
-                    <div className="card-label-sub">Registered Citizens</div>
-                </div>
-
-                <div className="card-stat-glass">
-                    <div className="card-header-flex">
-                        <div className="card-icon-box stat-icon-trend"><MdInsights /></div>
-                    </div>
-                    <div className="card-value-large">{stats.avgImpact}</div>
-                    <div className="card-label-sub">Avg Impact Score</div>
-                </div>
-            </div>
-
-            <div className="table-glass-container dashboard-panel-gap">
-                <div className="table-head">
-                    <h3 className="table-title"><MdWarningAmber style={{ verticalAlign: 'middle', marginRight: 6 }} />Recommended Actions</h3>
-                </div>
-                {recommendedActions.length === 0 ? (
-                    <div className="dashboard-empty">
-                        <p>No active recommendations right now.</p>
-                    </div>
-                ) : (
-                    <div style={{ padding: 14, display: 'grid', gap: 12 }}>
-                        {recommendedActions.map((issue, index) => (
-                            <div key={issue.id} className="glass-panel" style={{ padding: 14 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-                                    <div className="area-report-meta">Recommendation #{index + 1} | {issue.impact_priority || 'LOW'} priority</div>
-                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                        Impact {Number(issue.impact_score || 0).toFixed(1)} | People {formatPeople(issue.affected_people)}
-                                    </div>
-                                </div>
-                                <div className="area-report-title">{issue.description?.slice(0, 130) || 'Complaint'}</div>
-                                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
-                                    {issue.recommendation_text}
-                                </div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                                    Why this matters: {issue.impact_reason}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            <div className="table-glass-container" style={{ marginBottom: 16 }}>
-                <div className="table-head">
-                    <h3 className="table-title"><MdWarningAmber style={{ verticalAlign: 'middle', marginRight: 6 }} />Top Priority Today</h3>
-                </div>
-                <div style={{ padding: 14 }}>
-                    {!topToday && <div className="dashboard-empty"><p>No reports detected today.</p></div>}
-                    {topToday && (
-                        <div className="glass-panel" style={{ padding: 12 }}>
-                            <div className="area-report-meta">{topToday.ward} | {topToday.status}</div>
-                            <div className="area-report-title">{topToday.description?.slice(0, 120) || 'Complaint'}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                                Impact: {Number(topToday.impact_score || 0).toFixed(1)} | People: {formatPeople(topToday.affected_people)} | Base priority: {topToday.priority_score || 0}
-                            </div>
-                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
-                                {topToday.recommendation_text}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="table-glass-container" style={{ marginBottom: 16 }}>
-                <div className="table-head">
-                    <h3 className="table-title">Priority Action Queue</h3>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <select 
-                            value={sourceFilter} 
-                            onChange={(e) => setSourceFilter(e.target.value)}
-                            className="badge-pill"
-                            style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', cursor: 'pointer' }}
-                        >
-                            <option value="all">All Sources</option>
-                            <option value="web">Web Only</option>
-                            <option value="call">Phone Calls</option>
-                        </select>
-                        <Button size="sm" variant="secondary" onClick={() => fetchComplaints(true)}>Refresh</Button>
-                    </div>
-                </div>
-
-                {actionable.length === 0 ? (
-                    <div className="dashboard-empty">
-                        <h3>No pending issues</h3>
-                        <p>All visible complaints are resolved.</p>
-                    </div>
-                ) : (
-                    <div className="table-scroll">
-                        <table className="table-modern">
-                            <thead>
-                                <tr>
-                                    <th>Issue</th>
-                                    <th>Impact</th>
-                                    <th>People</th>
-                                    <th>AI Priority</th>
-                                    <th>Status</th>
-                                    <th>Quick Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {actionable.map((c) => (
-                                    <tr key={c.id}>
-                                        <td className="cell-title">
-                                            {c.source === 'call' && <MdCall style={{ color: 'var(--primary)', marginRight: 6 }} />}
-                                            <div>{c.description?.slice(0, 80) || 'Complaint'}</div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                                                {c.recommendation_text}
-                                            </div>
-                                        </td>
-                                        <td style={{ minWidth: 170 }}>
-                                            <div style={{ display: 'grid', gap: 8 }}>
-                                                <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                    {Number(c.impact_score || 0).toFixed(1)}/100
-                                                </div>
-                                                <div style={{ height: 8, borderRadius: 999, background: 'var(--bg-input)', overflow: 'hidden' }}>
-                                                    <div
-                                                        style={{
-                                                            width: `${Math.max(4, Math.min(100, Number(c.impact_score || 0)))}%`,
-                                                            height: '100%',
-                                                            background: impactBarColor(c.impact_priority),
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                    Duplicates: {c.duplicate_count || 1} | Upvotes: {c.upvotes_count || 0}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>{formatPeople(c.affected_people)}</td>
-                                        <td>
-                                            <span className={`badge-pill impact-priority-${impactPriorityClass(c.impact_priority)}`}>
-                                                {c.impact_priority || 'LOW'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={`badge-pill status-${toStatusClass(c.status)}`}>
-                                                {c.status || 'Pending'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    disabled={c.status === 'Open' || updatingIds.includes(c.id)}
-                                                    onClick={() => updateStatus(c.id, 'Open')}
-                                                >
-                                                    Open
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    disabled={c.status === 'In Progress' || updatingIds.includes(c.id)}
-                                                    onClick={() => updateStatus(c.id, 'In Progress')}
-                                                >
-                                                    In Progress
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="success"
-                                                    disabled={c.status === 'Resolved' || updatingIds.includes(c.id)}
-                                                    onClick={() => updateStatus(c.id, 'Resolved')}
-                                                >
-                                                    Resolve
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
-            <div className="table-glass-container">
-                <div className="table-head">
-                    <h3 className="table-title">Recent Activity</h3>
-                </div>
-                {recent.length === 0 ? (
-                    <div className="dashboard-empty">
-                        <h3>No recent data</h3>
-                        <p>Incoming complaints will appear here automatically.</p>
-                    </div>
-                ) : (
-                    <div className="table-scroll">
-                        <table className="table-modern">
-                            <thead>
-                                <tr>
-                                    <th>Reference ID</th>
-                                    <th>Title</th>
-                                    <th>Category</th>
-                                    <th>AI Priority</th>
-                                    <th>Impact</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {recent.map((c, i) => (
-                                    <tr key={c.id || i}>
-                                        <td className="cell-mono">#{c.id || 1000 + i}</td>
-                                        <td className="cell-title">{c.description?.slice(0, 45) || 'Complaint'}</td>
-                                        <td><span className="cell-category">{c.category || 'General'}</span></td>
-                                        <td>
-                                            <span className={`badge-pill impact-priority-${impactPriorityClass(c.impact_priority)}`}>
-                                                {c.impact_priority || 'LOW'}
-                                            </span>
-                                        </td>
-                                        <td className="cell-date">
-                                            {Number(c.impact_score || 0).toFixed(1)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
             {toast && (
-                <div style={{
-                    position: 'fixed', right: 20, bottom: 20, zIndex: 40,
-                    padding: '10px 14px', borderRadius: 10,
-                    color: '#fff',
-                    background: toast.type === 'success' ? 'rgba(16,185,129,0.95)' : 'rgba(239,68,68,0.95)',
-                }}>
-                    {toast.message}
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        zIndex: 9999,
+                        background: '#10b981',
+                        color: '#fff',
+                        padding: '12px 20px',
+                        borderRadius: '10px',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    <MdCheckCircle size={20} />
+                    <span>{toast}</span>
                 </div>
             )}
+
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#818cf8', marginBottom: '4px' }}>
+                        <MdEngineering size={22} />
+                        <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase' }}>
+                            MCGM Water Department & Campus Estates
+                        </span>
+                    </div>
+                    <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Water Leakage Management Command
+                    </h1>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                        onClick={() => navigate('/admin/map')}
+                        className="btn btn-secondary-glass"
+                        style={{ padding: '9px 16px', fontSize: '13px' }}
+                    >
+                        Infrastructure Map
+                    </button>
+                    <button
+                        onClick={() => navigate('/admin/analytics')}
+                        className="btn btn-primary-filled"
+                        style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        <span>Conservation Analytics</span>
+                        <MdArrowForward size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Authority KPI Metrics */}
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '14px',
+                    marginBottom: '28px',
+                }}
+            >
+                {/* Total Reports */}
+                <div className="card-glass" style={{ padding: '16px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Total Reports</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)' }}>{stats.totalReports}</div>
+                    <div style={{ fontSize: '11px', color: '#38bdf8' }}>Colleges & Societies</div>
+                </div>
+
+                {/* Pending Repairs */}
+                <div className="card-glass" style={{ padding: '16px', borderLeft: '4px solid #ef4444' }}>
+                    <div style={{ fontSize: '12px', color: '#f87171', fontWeight: 600 }}>Pending Repairs</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#ef4444' }}>{stats.pendingRepairs}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Require team assignment</div>
+                </div>
+
+                {/* Critical Leaks */}
+                <div className="card-glass" style={{ padding: '16px', borderLeft: '4px solid #dc2626' }}>
+                    <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 700 }}>Critical Leakages</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626' }}>{stats.criticalLeaks}</div>
+                    <div style={{ fontSize: '11px', color: '#dc2626' }}>Immediate action needed</div>
+                </div>
+
+                {/* Completed Repairs */}
+                <div className="card-glass" style={{ padding: '16px', borderLeft: '4px solid #10b981' }}>
+                    <div style={{ fontSize: '12px', color: '#34d399', fontWeight: 600 }}>Completed Repairs</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#10b981' }}>{stats.resolvedLeaks}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Arrested & certified</div>
+                </div>
+
+                {/* Estimated Water Wastage */}
+                <div className="card-glass" style={{ padding: '16px', borderLeft: '4px solid #f59e0b' }}>
+                    <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 600 }}>Total Water Loss</div>
+                    <div style={{ fontSize: '22px', fontWeight: 800, color: '#f59e0b' }}>
+                        {stats.estimatedWaterWastageLiters.toLocaleString()} L
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Potable loss to date</div>
+                </div>
+
+                {/* Estimated Water Saved */}
+                <div className="card-glass" style={{ padding: '16px', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                    <div style={{ fontSize: '12px', color: '#34d399', fontWeight: 700 }}>Water Saved</div>
+                    <div style={{ fontSize: '22px', fontWeight: 800, color: '#10b981' }}>
+                        {stats.estimatedWaterSavedLiters.toLocaleString()} L
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#34d399' }}>
+                        ~{stats.tankerEquivalentSaved} Tanker equiv.
+                    </div>
+                </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    marginBottom: '16px',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    background: 'var(--bg-glass-strong)',
+                    border: '1px solid var(--border-default)',
+                }}
+            >
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {['All', 'Pending', 'In Progress', 'Resolved'].map((st) => (
+                        <button
+                            key={st}
+                            onClick={() => setStatusFilter(st)}
+                            className={`btn ${statusFilter === st ? 'btn-primary-filled' : 'btn-ghost'}`}
+                            style={{ padding: '5px 12px', fontSize: '12px', borderRadius: '16px' }}
+                        >
+                            {st}
+                        </button>
+                    ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <select
+                        value={envFilter}
+                        onChange={(e) => setEnvFilter(e.target.value)}
+                        style={{
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            background: 'var(--bg-input, #1e293b)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-default)',
+                            fontSize: '12px',
+                        }}
+                    >
+                        <option value="All">All Environments</option>
+                        <option value="College">🎓 Colleges</option>
+                        <option value="Residential">🏢 Residential Societies</option>
+                    </select>
+
+                    <div style={{ position: 'relative', width: '220px' }}>
+                        <MdSearch size={16} style={{ position: 'absolute', left: '10px', top: '9px', color: 'var(--text-muted)' }} />
+                        <input
+                            type="text"
+                            placeholder="Search report ID, location..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '6px 10px 6px 32px',
+                                borderRadius: '8px',
+                                background: 'var(--bg-input, #1e293b)',
+                                color: 'var(--text-primary)',
+                                border: '1px solid var(--border-default)',
+                                fontSize: '12px',
+                            }}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Management Table */}
+            <div className="table-glass-container" style={{ overflowX: 'auto', borderRadius: '12px', marginBottom: '24px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-default)', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>
+                            <th style={{ padding: '12px 14px' }}>Report ID</th>
+                            <th style={{ padding: '12px 14px' }}>Leakage Type & Title</th>
+                            <th style={{ padding: '12px 14px' }}>Institution / Location</th>
+                            <th style={{ padding: '12px 14px' }}>Severity</th>
+                            <th style={{ padding: '12px 14px' }}>Status</th>
+                            <th style={{ padding: '12px 14px' }}>Assigned Team</th>
+                            <th style={{ padding: '12px 14px' }}>Reported</th>
+                            <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredReports.map((report) => {
+                            const statusBadge = getStatusBadge(report.status);
+                            const sevBadge = getSeverityBadge(report.severity);
+
+                            return (
+                                <tr
+                                    key={report.id}
+                                    style={{ borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        setSelectedReport(report);
+                                        setShowDetailModal(true);
+                                    }}
+                                >
+                                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: '#38bdf8' }}>
+                                        {report.id}
+                                    </td>
+                                    <td style={{ padding: '12px 14px' }}>
+                                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{report.title}</div>
+                                        <div style={{ fontSize: '11px', color: '#0ea5e9' }}>{report.category}</div>
+                                    </td>
+                                    <td style={{ padding: '12px 14px' }}>
+                                        <div style={{ fontWeight: 600 }}>{report.institution}</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{report.location} ({report.ward})</div>
+                                    </td>
+                                    <td style={{ padding: '12px 14px' }}>
+                                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: sevBadge.bg, color: sevBadge.color }}>
+                                            {report.severity}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '12px 14px' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: statusBadge.bg, color: statusBadge.color }}>
+                                            {statusBadge.label}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                        {report.assignedTeam || (
+                                            <span style={{ color: '#ef4444', fontStyle: 'italic' }}>Pending Assignment</span>
+                                        )}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                        {new Date(report.reportedAt || report.created_at).toLocaleDateString()}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => openEditModal(report, e)}
+                                                className="btn btn-primary-filled"
+                                                style={{ padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                                <MdEdit size={13} />
+                                                <span>Update</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Action / Update Status Modal */}
+            {editingReport && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                        padding: '16px',
+                    }}
+                    onClick={() => setEditingReport(null)}
+                >
+                    <div
+                        style={{
+                            background: 'var(--bg-surface, #18181b)',
+                            border: '1px solid var(--border-default)',
+                            borderRadius: '16px',
+                            width: '100%',
+                            maxWidth: '540px',
+                            padding: '24px',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                            color: 'var(--text-primary)',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <div>
+                                <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700 }}>
+                                    {editingReport.id}
+                                </span>
+                                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '2px 0 0 0' }}>
+                                    Update Repair Status & Assign Squad
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setEditingReport(null)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                            >
+                                <MdClose size={22} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveEdit}>
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Repair Status
+                                </label>
+                                <select
+                                    value={editStatus}
+                                    onChange={(e) => setEditStatus(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-input, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '13px',
+                                    }}
+                                >
+                                    <option value="Open">Open (Pending Triage)</option>
+                                    <option value="Under Review">Under Review (Inspecting)</option>
+                                    <option value="In Progress">In Progress (Plumber On Site)</option>
+                                    <option value="Resolved">Resolved (Leak Arrested & Certified)</option>
+                                </select>
+                            </div>
+
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Assign Maintenance Team / Squad
+                                </label>
+                                <select
+                                    value={editTeam}
+                                    onChange={(e) => setEditTeam(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-input, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '13px',
+                                    }}
+                                >
+                                    {MAINTENANCE_TEAMS.map((team) => (
+                                        <option key={team.id} value={team.name}>
+                                            {team.name} ({team.type})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Repair Log / Status Update Note
+                                </label>
+                                <textarea
+                                    value={editNote}
+                                    onChange={(e) => setEditNote(e.target.value)}
+                                    rows={3}
+                                    required
+                                    placeholder="Enter repair details (e.g. ball valve replaced, pressure tested at 2.2 bar, leak arrested)..."
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-input, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '13px',
+                                    }}
+                                />
+                            </div>
+
+                            {editStatus === 'Resolved' && (
+                                <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', marginBottom: '16px', fontSize: '12px', color: '#34d399' }}>
+                                    ✓ Marking as <strong>Resolved</strong> will attach certified resolution photographic proof and credit water savings to the institutional conservation balance.
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingReport(null)}
+                                    className="btn btn-ghost"
+                                    style={{ padding: '8px 16px' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary-filled"
+                                    style={{ padding: '8px 20px', fontSize: '13px', fontWeight: 700 }}
+                                >
+                                    Save & Broadcast Update
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Report Details Modal */}
+            <ReportDetailsModal
+                report={selectedReport}
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                onRefresh={refreshData}
+            />
         </div>
     );
 }

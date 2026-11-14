@@ -1,134 +1,154 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { FiUser, FiMail, FiLock, FiChevronDown } from 'react-icons/fi';
-import api from '../utils/api';
+import { useNavigate } from 'react-router-dom';
+import { FiUser, FiMail, FiLock, FiHome, FiDroplet } from 'react-icons/fi';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
-
-const AUTHORITY_RANK_OPTIONS = [
-    { value: 'inspector', label: 'Inspector' },
-    { value: 'ward_officer', label: 'Ward Officer' },
-    { value: 'deputy_commissioner', label: 'Deputy Commissioner' },
-    { value: 'commissioner', label: 'Commissioner' },
-];
-
-function parseErrorMessage(err, fallback = 'Registration failed') {
-    const detail = err?.response?.data?.detail;
-    if (typeof detail === 'string' && detail.trim()) return detail;
-    if (Array.isArray(detail) && detail.length > 0) {
-        const first = detail[0];
-        if (typeof first === 'string') return first;
-        if (first && typeof first === 'object' && typeof first.msg === 'string') return first.msg;
-    }
-    if (detail && typeof detail === 'object' && typeof detail.msg === 'string') return detail.msg;
-    return fallback;
-}
+import { MUMBAI_COLLEGES, MUMBAI_RESIDENTIAL_SOCIETIES, MUMBAI_WARDS } from '../data/wards';
 
 export default function Register({ onSwitch, isFlipped }) {
     const navigate = useNavigate();
-    const [registerAs, setRegisterAs] = useState('citizen');
+    const [roleType, setRoleType] = useState('citizen');
+    const [environment, setEnvironment] = useState('College');
+    const [institution, setInstitution] = useState('Veermata Jijabai Technological Institute (VJTI)');
+    const [ward, setWard] = useState('Ward F/N');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [authorityRank, setAuthorityRank] = useState('inspector');
-    const [authorityCode, setAuthorityCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handleRegister = async (e) => {
+    const handleEnvironmentChange = (env) => {
+        setEnvironment(env);
+        if (env === 'College') {
+            setInstitution(MUMBAI_COLLEGES[0].name);
+            setWard(MUMBAI_COLLEGES[0].ward);
+        } else {
+            setInstitution(MUMBAI_RESIDENTIAL_SOCIETIES[0].name);
+            setWard(MUMBAI_RESIDENTIAL_SOCIETIES[0].ward);
+        }
+    };
+
+    const handleRegister = (e) => {
         e.preventDefault();
         setError('');
+
         if (password !== confirmPassword) {
             setError('Password and confirm password do not match');
             return;
         }
 
         setLoading(true);
-        try {
-            if (registerAs === 'authority') {
-                await api.post('/auth/register/authority', {
-                    name,
-                    email,
-                    password,
-                    authority_rank: authorityRank,
-                    authority_code: authorityCode,
-                });
-            } else {
-                await api.post('/auth/register', {
-                    name,
-                    email,
-                    password,
-                });
-            }
-
-            const loginPayload = {
+        setTimeout(() => {
+            const user = {
+                name: name || (email.split('@')[0].replace(/[._]/g, ' ')),
                 email,
-                password,
-                login_as: registerAs,
+                role: roleType,
+                environment,
+                institution,
+                ward,
             };
-            if (registerAs === 'authority') {
-                loginPayload.authority_code = authorityCode;
-            }
+            const token = `mock-token-${Date.now()}-${roleType}`;
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(user));
+            setLoading(false);
 
-            const loginRes = await api.post('/auth/login', loginPayload);
-            const { access_token, role, authority_rank, authority_level } = loginRes.data;
-
-            localStorage.setItem('token', access_token);
-            localStorage.setItem('user', JSON.stringify({
-                name,
-                email,
-                role,
-                authority_rank,
-                authority_level,
-            }));
-
-            if (role === 'authority' || role === 'admin') {
+            if (roleType === 'authority') {
                 navigate('/admin/dashboard', { replace: true });
             } else {
                 navigate('/citizen/dashboard', { replace: true });
             }
-        } catch (err) {
-            setError(parseErrorMessage(err));
-        } finally {
-            setLoading(false);
-        }
+        }, 400);
     };
 
     return (
         <div className="glass-card-liquid" style={{ pointerEvents: isFlipped ? 'auto' : 'none', visibility: isFlipped ? 'visible' : 'hidden' }}>
-            <div className="auth-header-liquid auth-header-mini">
-                <div className="auth-brand-mark-liquid auth-brand-mark-mini">MC</div>
-                <h1>Create Account</h1>
-                <p style={{ fontSize: '13px' }}>Join Mumbai Civic Portal</p>
+            <div className="auth-header-liquid auth-header-mini" style={{ textAlign: 'center' }}>
+                <div className="auth-brand-mark-liquid auth-brand-mark-mini" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)' }}>
+                    <FiDroplet size={20} color="#ffffff" />
+                </div>
+                <h1 style={{ fontSize: '20px', fontWeight: 800, marginTop: '6px', color: '#f8fafc' }}>Join Mumbai WaterWatch</h1>
+                <p style={{ fontSize: '11px', color: '#94a3b8' }}>Register as Campus Reporter or Society Resident</p>
             </div>
 
             {error && (
-                <div className="form-alert form-alert-danger" role="alert" style={{ marginBottom: '12px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)', color: '#feb2b2', padding: '8px 12px', fontSize: '12px', maxHeight: '60px', overflowY: 'auto' }}>
+                <div className="form-alert form-alert-danger" role="alert" style={{ marginBottom: '10px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)', color: '#feb2b2', padding: '6px 10px', fontSize: '12px' }}>
                     {error}
                 </div>
             )}
 
-            <form onSubmit={handleRegister} className="auth-form-liquid" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleRegister} className="auth-form-liquid" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                        type="button"
+                        onClick={() => handleEnvironmentChange('College')}
+                        style={{
+                            padding: '6px 8px',
+                            borderRadius: '8px',
+                            background: environment === 'College' ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255,255,255,0.05)',
+                            border: `1px solid ${environment === 'College' ? '#0ea5e9' : 'rgba(255,255,255,0.1)'}`,
+                            color: environment === 'College' ? '#38bdf8' : '#94a3b8',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        🎓 College Campus
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleEnvironmentChange('Residential')}
+                        style={{
+                            padding: '6px 8px',
+                            borderRadius: '8px',
+                            background: environment === 'Residential' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255,255,255,0.05)',
+                            border: `1px solid ${environment === 'Residential' ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                            color: environment === 'Residential' ? '#34d399' : '#94a3b8',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        🏢 Residential Society
+                    </button>
+                </div>
+
                 <InputField
-                    id="register-as"
-                    label="Register As"
+                    id="inst-select"
+                    label={environment === 'College' ? 'College / University' : 'Housing Society'}
                     as="select"
-                    value={registerAs}
-                    onChange={(e) => setRegisterAs(e.target.value)}
+                    value={institution}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        setInstitution(val);
+                        const match = environment === 'College'
+                            ? MUMBAI_COLLEGES.find((c) => c.name === val)
+                            : MUMBAI_RESIDENTIAL_SOCIETIES.find((s) => s.name === val);
+                        if (match) setWard(match.ward);
+                    }}
                     liquid
-                    icon={FiChevronDown}
                     size="sm"
                 >
-                        <option value="citizen" style={{ background: '#1e293b' }}>Citizen</option>
-                        <option value="authority" style={{ background: '#1e293b' }}>Authority</option>
+                    {environment === 'College' ? (
+                        MUMBAI_COLLEGES.map((c) => (
+                            <option key={c.name} value={c.name} style={{ background: '#1e293b' }}>
+                                {c.name}
+                            </option>
+                        ))
+                    ) : (
+                        MUMBAI_RESIDENTIAL_SOCIETIES.map((s) => (
+                            <option key={s.name} value={s.name} style={{ background: '#1e293b' }}>
+                                {s.name}
+                            </option>
+                        ))
+                    )}
                 </InputField>
 
                 <InputField
-                    id="name"
+                    id="reg-name"
                     type="text"
                     label="Full Name"
-                    placeholder="John Doe"
+                    placeholder="e.g. Aditya Deshmukh"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -138,10 +158,10 @@ export default function Register({ onSwitch, isFlipped }) {
                 />
 
                 <InputField
-                    id="email"
+                    id="reg-email"
                     type="email"
                     label="Email Address"
-                    placeholder="john@example.com"
+                    placeholder="student@vjti.ac.in or resident@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -150,77 +170,54 @@ export default function Register({ onSwitch, isFlipped }) {
                     size="sm"
                 />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="auth-row-liquid">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <InputField
-                        id="password"
+                        id="reg-pwd"
                         type="password"
                         label="Password"
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        minLength={8}
                         liquid
                         icon={FiLock}
                         size="sm"
                     />
+
                     <InputField
-                        id="confirm-password"
+                        id="reg-confirm-pwd"
                         type="password"
-                        label="Confirm Password"
+                        label="Confirm"
                         placeholder="••••••••"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
-                        minLength={8}
                         liquid
                         icon={FiLock}
                         size="sm"
                     />
                 </div>
 
-                {registerAs === 'authority' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="auth-row-liquid">
-                        <InputField
-                            id="authority-rank"
-                            label="Rank"
-                            as="select"
-                            value={authorityRank}
-                            onChange={(e) => setAuthorityRank(e.target.value)}
-                            liquid
-                            size="sm"
-                        >
-                                {AUTHORITY_RANK_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value} style={{ background: '#1e293b' }}>{opt.label}</option>
-                                ))}
-                        </InputField>
-                        <InputField
-                            id="authority-code"
-                            type="text"
-                            label="Code"
-                            placeholder="MUM-XXX-XXXX"
-                            value={authorityCode}
-                            onChange={(e) => setAuthorityCode(e.target.value)}
-                            required
-                            liquid
-                            size="sm"
-                        />
-                    </div>
-                )}
-
-                <Button 
-                    type="submit" 
-                    fullWidth 
+                <Button
+                    type="submit"
+                    fullWidth
                     loading={loading}
                     className="btn-liquid-gradient"
-                    style={{ marginTop: '5px', padding: '10px', fontSize: '14px' }}
+                    style={{ padding: '8px', fontSize: '13px', marginTop: '4px' }}
                 >
-                    {loading ? 'Creating Account...' : 'Register'}
+                    {loading ? 'Creating Account...' : 'Complete Registration'}
                 </Button>
             </form>
 
-            <div className="auth-footer-text" style={{ textAlign: 'center', marginTop: '20px', color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>
-                Already have an account? <button type="button" onClick={onSwitch} style={{ background: 'none', border: 'none', color: '#818cf8', fontWeight: '600', cursor: 'pointer', padding: 0 }}>Login</button>
+            <div className="auth-footer-text" style={{ textAlign: 'center', marginTop: '12px', color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
+                Already registered?{' '}
+                <button
+                    type="button"
+                    onClick={onSwitch}
+                    style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                >
+                    Sign In Here
+                </button>
             </div>
         </div>
     );
