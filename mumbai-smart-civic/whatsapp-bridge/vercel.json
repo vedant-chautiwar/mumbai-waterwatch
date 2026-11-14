@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "installCommand": "cd ../frontend && npm install",
+  "buildCommand": "cd ../frontend && npm install && npm run build && rm -rf ../whatsapp-bridge/dist && cp -r dist ../whatsapp-bridge/dist",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

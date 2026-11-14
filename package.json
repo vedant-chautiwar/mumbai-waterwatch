@@ -1,0 +1,8 @@
+{
+  "name": "mumbai-waterwatch-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd mumbai-smart-civic/frontend && npm install && npm run build"
+  }
+}

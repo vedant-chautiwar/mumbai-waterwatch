@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "cd ../frontend && npm install && npm run build && rm -rf ../whatsapp-bridge/dist && cp -r dist ../whatsapp-bridge/dist"
   },
   "dependencies": {
     "express": "^4.21.2"
