@@ -6,3 +6,4 @@
     "build": "cd mumbai-smart-civic/frontend && npm install && npm run build"
   }
 }
+
